@@ -58,4 +58,4 @@ On traditional booking platforms, users typically have to manually browse hotel 
 
 ### Database & Services
 * **Firebase**: Used for real-time data storage and management, including user, hotel, room, and booking information.
-* **SMTP**: Used for sending booking confirmation emails and other application notifications.
+* **SMTP**: Used for sending booking confirmation emails .
