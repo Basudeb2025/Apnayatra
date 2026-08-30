@@ -26,7 +26,9 @@ On traditional booking platforms, users typically have to manually browse hotel 
   * Cancel existing reservations.
   * View previously booked hotels.
 * **User Dashboard**: Conveniently access, review, and manage booking information.
-* **Email Confirmations**: Receive booking confirmation emails whenever a reservation is successfully completed.
+* **Email Confirmations**: Receive booking confirmation emails whenever a reservation is successfully completed
+  <img width="1917" height="932" alt="image" src="https://github.com/user-attachments/assets/d31f1b3f-10a5-4c6b-9123-5c224bef8f84" />
+
 
 ### 🏢 2. Hotel Manager Portal (For Hotel Owners & Managers)
 * **Hotel Registration**: Register hotels with essential information, including hotel name, location, city, room pricing, and total number of rooms.
@@ -38,6 +40,7 @@ On traditional booking platforms, users typically have to manually browse hotel 
   * Duration of stay
 * **AI Manager Assistant**: An AI-powered assistant that helps hotel managers interact with and manage hotel-related information efficiently.
 * **Host Notifications**: Receive automated confirmation emails whenever a customer completes a reservation.
+<img width="1915" height="932" alt="image" src="https://github.com/user-attachments/assets/7e79671c-8a33-492e-a9b8-cccab037753a" />
 
 ---
 
