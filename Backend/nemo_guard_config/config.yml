@@ -1,0 +1,25 @@
+models:
+  # 1. Main Model: Google Gemini Flash
+  - type: main
+    engine: google_genai
+    model: gemini-flash-latest
+
+  # 2. Guardrail Classifier: openai/gpt-oss-20b via Groq
+  - type: custom_guard
+    engine: openai
+    model: openai/gpt-oss-20b
+    parameters:
+      base_url: "https://api.groq.com/openai/v1"
+      api_key: $GROQ_API_KEY
+
+rails:
+  input:
+    flows:
+      - check safety input $model=custom_guard
+      - check travel domain
+
+messages:
+  - type: safety_violation
+    content: "I cannot fulfill this request as it violates safety guidelines."
+  - type: general
+    content: "I am ApnaYatra, your Travel Agent Manager. I can only assist with travel planning, hotel bookings, weather, and destination details."

@@ -1,0 +1,6 @@
+{
+  "name": "TravelAgent Ops Console",
+  "description": "Travel and Hotel AI Agent Console with booking tracking and chat navigation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

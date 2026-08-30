@@ -1,0 +1,6 @@
+{
+  "name": "Hotel Manager Admin Panel",
+  "description": "Professional admin panel for hotel managers to manage room availability, track reservations, view guest data, and generate monthly revenue reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

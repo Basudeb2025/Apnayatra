@@ -1,0 +1,210 @@
+SYSTEM_PROMPT = system_prompt
+
+
+_MODEL_NAME = "gemini-flash-latest"
+_API_KEY = os.getenv("GOOGLE_API_KEY")
+CACHE_TTL_SECONDS = 3600
+
+_base_model = ChatGoogleGenerativeAI(
+    model=_MODEL_NAME, temperature=0, google_api_key=_API_KEY
+)
+
+_cache_lock = threading.Lock()
+_cached_content = None      # Cache object from create_context_cache
+_cache_expires_at = None    # datetime (UTC) - when we should refresh
+llm_with_tools = None       # populated by _ensure_cache(), used below
+
+
+def _create_cache():
+    cache = create_context_cache(
+        _base_model,
+        messages=[SystemMessage(content=SYSTEM_PROMPT)],
+        ttl=f"{CACHE_TTL_SECONDS}s",
+    )
+    logger.info("[cache] created new context cache: %s", cache.name)
+    return cache
+
+
+def _build_llm_with_tools(cache):
+    model = ChatGoogleGenerativeAI(
+        model=_MODEL_NAME, temperature=0, google_api_key=_API_KEY
+    ).bind(cached_content=cache.name)
+    return model.bind_tools(ALL_TOOLS)
+
+
+def _ensure_cache():
+    """Make sure llm_with_tools is bound to a valid, non-expired cache."""
+    global _cached_content, _cache_expires_at, llm_with_tools
+
+    now = datetime.now(timezone.utc)
+    if llm_with_tools is not None and _cache_expires_at and now < _cache_expires_at:
+        return
+
+    with _cache_lock:
+        now = datetime.now(timezone.utc)
+        if llm_with_tools is not None and _cache_expires_at and now < _cache_expires_at:
+            return  
+
+        _cached_content = _create_cache()
+        llm_with_tools = _build_llm_with_tools(_cached_content)
+        _cache_expires_at = now + timedelta(seconds=CACHE_TTL_SECONDS - 60)
+
+
+# Create the cache once at import/startup time.
+_ensure_cache()
+
+
+# Tools whose `phone_number` argument must NEVER come from the model or
+# from chat text. The user already authenticated with this number at
+# login (it's `user_id` in the graph config) - we always overwrite
+# whatever the model produced with the real, session-authenticated value.
+# This also stops the model from ever needing to ask the user for their
+# own phone number mid-conversation.
+PHONE_AUTO_TOOLS = {"get_user_data", "hotel_booking", "cancel_booking"}
+
+
+def _apply_authenticated_args(name: str, args: dict, user_id: str) -> dict:
+    args = dict(args or {})
+    # Always ensure the authenticated `user_id` is present for tools.
+    # For tools that accept a phone number, prefer an explicit phone number
+    # supplied by the model (which would come from the user's latest input).
+    # Only fall back to the session-authenticated `user_id` when no phone
+    # number was explicitly provided.
+    if name in PHONE_AUTO_TOOLS:
+        args["user_id"] = user_id
+        if not args.get("phone_number"):
+            args["phone_number"] = user_id
+        if name == "get_user_data":
+            args["sessionkey"] = user_id
+    return args
+
+
+# ---------------------------------------------------------------------------
+# node1: choose the tool (also produces the final natural-language answer
+# once no more tool calls are needed -- standard ReAct loop)
+# ---------------------------------------------------------------------------
+def call_model(state: AgentState, config: RunnableConfig) -> dict:
+    # Cheap on every call - only does real work when the cache is
+    # missing or close to expiry.
+    _ensure_cache()
+
+    messages = list(state["messages"])
+    user_id = (config.get("configurable") or {}).get("user_id", "default_user")
+
+    # Pull cross-session memory relevant to the latest user message and
+    # fold it into a SystemMessage (mem0 handles the "who is this user
+    # / what do we already know about them" part; the checkpointer below
+    # only handles this single thread's in-flight state).
+    last_human = next(
+        (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
+    )
+    memory_context = (
+        get_relevant_memories(user_id, last_human.content) if last_human else ""
+    )
+
+    # NOTE: SYSTEM_PROMPT is NOT sent here anymore - it's baked into the
+    # cache and applied automatically via cached_content on llm_with_tools.
+    # Sending it again as a SystemMessage would duplicate/conflict with it.
+    dynamic_messages = [
+        m for m in messages if not isinstance(m, SystemMessage)
+    ]
+
+    if memory_context:
+        memory_msg = SystemMessage(content=(
+            "Relevant memory about this user from past conversations "
+            "(names, preferences, prior context only - this is NOT live data "
+            "and may be outdated):\n"
+            f"{memory_context}\n\n"
+            "IMPORTANT: never answer a hotel listing, hotel detail, booking, "
+            "cancellation, or weather question directly from the memory "
+            "above. Always call the appropriate tool to get current results, "
+            "even if the memory already seems to contain an answer."
+        ))
+        dynamic_messages = [memory_msg] + dynamic_messages
+
+    try:
+        response = llm_with_tools.invoke(dynamic_messages)
+    except Exception:
+        logger.exception("[call_model] LLM call failed")
+        response = AIMessage(
+            content=(
+                "Sorry, I had trouble putting that request together. "
+                "Could you try rephrasing, or ask again?"
+            )
+        )
+
+    usage = getattr(response, "usage_metadata", None) or {}
+    logger.info(
+        "[call_model] tool_calls=%s content=%r usage=%s",
+        getattr(response, "tool_calls", None),
+        response.content,
+        usage,
+    )
+    return {"messages": [response]}
+
+
+from nemoguardrails import LLMRails, RailsConfig
+
+# Initialize NeMo Guardrails
+rails_config = RailsConfig.from_path("./config")
+guardrails = LLMRails(rails_config)
+
+
+# -----------------------------------------------------------------
+# Node 0: Entry Guardrails Node
+# -----------------------------------------------------------------
+async def guardrails_node(state: AgentState, config: RunnableConfig) -> dict:
+    messages = list(state["messages"])
+    
+    # Extract the latest user input
+    last_human = next(
+        (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
+    )
+    if not last_human:
+        return {}
+
+    user_input = last_human.content
+
+    try:
+        # Run NeMo Guardrails (Llama Guard / GPT-OSS on Groq + Colang domain rules)
+        res = await guardrails.generate_async(
+            messages=[{"role": "user", "content": user_input}]
+        )
+        guardrail_output = res.get("content", "").strip()
+
+        # Phrases indicating an off-topic refusal or safety violation
+        refusal_signatures = [
+            "ApnaYatra",
+            "safety policies",
+            "safety guidelines",
+            "I can only assist with travel",
+        ]
+
+        if any(sig in guardrail_output for sig in refusal_signatures):
+            logger.warning("[guardrails_node] Query blocked by guardrails: %r", guardrail_output)
+            # Appending AIMessage terminates the turn and responds directly to the user
+            return {"messages": [AIMessage(content=guardrail_output)]}
+
+    except Exception:
+        logger.exception("[guardrails_node] Guardrail check failed; failing open/closed depending on policy.")
+        # Optional: fail open or return safe refusal fallback
+
+    return {}
+
+def route_after_guardrails(state: AgentState) -> str:
+    last_message = state["messages"][-1]
+    if isinstance(last_message, AIMessage):
+        return "end"
+    return "call_model"
+
+graph.add_node("guardrails_node",guardrails_node)
+
+graph.set_entry_point("guardrails_node")
+graph.add_conditional_edges(
+        "guardrails_node",
+        route_after_guardrails,
+        {
+            "end": "save_memory",
+            "call_model":call_model
+        },
+    )

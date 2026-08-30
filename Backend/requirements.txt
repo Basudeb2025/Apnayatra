@@ -1,0 +1,41 @@
+# --- LangChain & LangGraph Core (0.3.x Ecosystem) ---
+langchain>=0.3.0,<0.4.0
+langchain-core>=0.3.0,<0.4.0
+langchain-community>=0.3.0,<0.4.0
+langgraph>=0.2.60,<0.3.0
+langgraph-checkpoint-sqlite>=2.0.0,<3.0.0
+langgraph-supervisor>=0.0.4
+
+# --- LangChain Integrations & Adapters ---
+langchain-openai>=0.2.0,<0.3.0
+langchain-groq>=0.2.0,<0.3.0
+langchain-google-genai>=2.0.0,<3.0.0
+langchain-chroma>=0.1.4,<0.2.0
+langchain-huggingface>=0.1.2,<0.2.0
+langchain-mcp-adapters>=0.1.0
+
+# --- Vector DB & Embeddings ---
+chromadb>=0.5.23,<1.0.0
+sentence-transformers>=3.0.0,<4.0.0
+huggingface_hub>=0.26.0,<1.0.0
+
+# --- Web Framework & Server ---
+fastapi>=0.115.0,<1.0.0
+uvicorn>=0.32.0,<1.0.0
+
+# --- Guardrails, Memory & Observability ---
+nemoguardrails>=0.11.0,<1.0.0
+mem0ai>=0.1.25
+langfuse>=2.50.0,<3.0.0
+fastmcp>=0.1.0
+
+# --- Cloud & Storage ---
+firebase-admin>=6.5.0,<7.0.0
+
+# --- Parsing, Utilities & HTTP ---
+requests>=2.32.3,<3.0.0
+aiohttp>=3.10.0,<4.0.0
+beautifulsoup4>=4.12.3,<5.0.0
+html2text>=2024.2.26
+lxml>=5.3.0,<6.0.0
+python-dotenv>=1.0.1,<2.0.0
