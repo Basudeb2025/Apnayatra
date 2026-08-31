@@ -58,6 +58,7 @@ On traditional booking platforms, users typically have to manually browse hotel 
 * **ChromaDB**: Used as the vector database for the RAG system to store and retrieve hotel-related information.
 * **MCP (Model Context Protocol) Tools**: Used to enable communication between the AI agents and backend services.
 * **LangSmith**: Used for AI application observability, monitoring, tracing, and debugging.
+<img width="872" height="635" alt="image" src="https://github.com/user-attachments/assets/e88ca549-66d5-4311-98e7-b028c3dada8f" />
 
 ### Database & Services
 * **Firebase**: Used for real-time data storage and management, including user, hotel, room, and booking information.
